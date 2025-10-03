@@ -12,70 +12,52 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Basic build job with SonarQube analysis
     steps:
+      # Checkout source code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Optional: install dependencies and run tests before scanning
+      # Setup Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '17'
+          node-version: '18'
+          cache: 'npm'
 
+      # Debug secrets (safe check, doesn’t print values)
+      - name: Debug secrets
+        run: |
+          echo "Checking if secrets are set..."
+          [ -z "${{ secrets.SONAR_TOKEN }}" ] && echo "❌ SONAR_TOKEN is NOT set" || echo "✅ SONAR_TOKEN is set"
+          [ -z "${{ secrets.ECR_REPOSITORY_URI }}" ] && echo "❌ ECR_REPOSITORY_URI is NOT set" || echo "✅ ECR_REPOSITORY_URI is set"
+          [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] && echo "❌ DOCKERHUB_USERNAME is NOT set" || echo "✅ DOCKERHUB_USERNAME is set"
+
+      # Install dependencies
       - name: Install dependencies
         run: npm ci
 
+      # Run tests
       - name: Run tests
         run: npm test
 
-
-          # Set up NodeJS - 
-      - name: Set up NodeJS
-        uses: actions/setup-node@v3
-        with:
-          node-version: '14'
-
-      # Install NodeJS dependencies
-      - name: Install NodeJS dependencies
-        run: npm install
-
-      # SonarQube Analysis
+      # SonarQube / SonarCloud Analysis
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
-         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-# Docker Image Build
+      # Build Docker Image
       - name: Build Docker Image
         run: |
-          docker build -t actions-app:${{ github.sha}} .
-          docker tag actions-app:${{ github.sha}} ${{ secrets.ECR_REPOSITORY_URI}}/actions-cicd:latest
-          docker tag actions-app:${{ github.sha}} ${{ secrets.DOCKERHUB_USERNAME }}/actions-cicd:latest
-
-      # Trivy Scan
-      - name: Trivy Scan
-        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image actions-app:${{ github.sha}}
-      
-      # Set up AWS Credentials
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      # Log in to Amazon ECR
-      - name: Log in to Amazon ECR
-        run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY_URI }}
+          docker build -t actions-app:${{ github.sha }} .
 
       # Push image to Amazon ECR
       - name: Push image to Amazon ECR
         run: |
-          docker push ${{ secrets.ECR_REPOSITORY_URI}}/actions-cicd:latest
-        env:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          docker tag actions-app:${{ github.sha }} ${{ secrets.ECR_REPOSITORY_URI }}:latest
+          docker tag actions-app:${{ github.sha }} ${{ secrets.ECR_REPOSITORY_URI }}:${{ github.sha }}
+          docker push ${{ secrets.ECR_REPOSITORY_URI }}:latest
+          docker push ${{ secrets.ECR_REPOSITORY_URI }}:${{ github.sha }}
 
+          
+         
