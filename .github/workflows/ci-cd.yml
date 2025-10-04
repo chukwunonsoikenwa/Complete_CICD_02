@@ -41,6 +41,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+
           
            # Login to Amazon ECR
       - name: Login to Amazon ECR
@@ -50,10 +51,8 @@ jobs:
            # Build, tag, and push image to Amazon ECR
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
-        env: 
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_URI }}
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY_URI }}
-          IMAGE_TAG: ${{ github.sha }} 
+        env:
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build . -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -65,6 +64,15 @@ jobs:
           
       # Trivy Scan
       - name: Run Trivy scan
-        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image actions-app:${{ github.sha}}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.ECR_REPOSITORY_URI }}:${{ github.sha }}'
+          format: "table"
+          exit-code: 1 
+          ignore-unfixed: true
+          severity: "CRITICAL"
        
-       
+
+
+
+        
